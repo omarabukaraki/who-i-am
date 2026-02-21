@@ -1,13 +1,21 @@
 const fs = require("fs");
 const path = require("path");
 const XLSX = require("xlsx");
+const Database = require("better-sqlite3");
 const { IMAGES } = require("./images");
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DEFAULT_CATEGORY = "عام";
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(process.cwd(), "data");
+const DB_PATH = process.env.DATA_DB_PATH
+  ? path.resolve(process.env.DATA_DB_PATH)
+  : path.join(DATA_DIR, "images.sqlite");
 const EXCEL_PATH = path.join(DATA_DIR, "images.xlsx");
 const IMAGES_SHEET = "Images";
 const CATEGORIES_SHEET = "Categories";
-const DEFAULT_CATEGORY = "عام";
+
+let dbInstance = null;
 
 function normalizeCategory(value) {
   return String(value || "").trim();
@@ -51,16 +59,6 @@ function seedImages() {
   })).filter((item) => item.label && isValidUrl(item.url));
 }
 
-function writeWorkbook({ images, categories }) {
-  const workbook = XLSX.utils.book_new();
-  const imagesSheet = XLSX.utils.json_to_sheet(images);
-  const categoriesSheet = XLSX.utils.json_to_sheet(categories);
-
-  XLSX.utils.book_append_sheet(workbook, imagesSheet, IMAGES_SHEET);
-  XLSX.utils.book_append_sheet(workbook, categoriesSheet, CATEGORIES_SHEET);
-  XLSX.writeFile(workbook, EXCEL_PATH);
-}
-
 function readSheetRows(workbook, sheetName) {
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) {
@@ -70,84 +68,168 @@ function readSheetRows(workbook, sheetName) {
   return XLSX.utils.sheet_to_json(sheet, { defval: "" });
 }
 
-function readWorkbook() {
-  return XLSX.readFile(EXCEL_PATH);
-}
+function getDb() {
+  if (dbInstance) {
+    return dbInstance;
+  }
 
-function ensureWorkbookStructure() {
-  const workbook = readWorkbook();
-  const imageRows = readSheetRows(workbook, IMAGES_SHEET);
-  const fallbackImageRows = imageRows.length
-    ? imageRows
-    : readSheetRows(workbook, workbook.SheetNames[0]);
-  const categoryRows = readSheetRows(workbook, CATEGORIES_SHEET);
-
-  const normalizedImages = fallbackImageRows
-    .map((row, index) => ({
-      id: String(row.id || `img-${String(index + 1).padStart(3, "0")}`),
-      label: String(row.label || "صورة بدون اسم").trim(),
-      category: normalizeCategory(row.category) || DEFAULT_CATEGORY,
-      url: String(row.url || "").trim(),
-      createdAt: String(row.createdAt || "")
-    }))
-    .filter((item) => item.label && isValidUrl(item.url));
-
-  const categoryNames = new Set();
-
-  categoryRows.forEach((row) => {
-    const name = normalizeCategory(row.name);
-    if (name) {
-      categoryNames.add(name);
-    }
-  });
-
-  normalizedImages.forEach((item) => {
-    if (item.category) {
-      categoryNames.add(item.category);
-    }
-  });
-
-  categoryNames.add(DEFAULT_CATEGORY);
-
-  const normalizedCategories = Array.from(categoryNames).map((name, index) => ({
-    id: `cat-${String(index + 1).padStart(3, "0")}`,
-    name,
-    createdAt: new Date().toISOString()
-  }));
-
-  writeWorkbook({
-    images: normalizedImages,
-    categories: normalizedCategories
-  });
-}
-
-function ensureExcelFile() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
-  if (!fs.existsSync(EXCEL_PATH)) {
-    writeWorkbook({
-      images: seedImages(),
-      categories: seedCategories()
-    });
+  dbInstance = new Database(DB_PATH);
+  dbInstance.pragma("journal_mode = WAL");
+
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS images (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      category TEXT NOT NULL,
+      url TEXT NOT NULL UNIQUE,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (category) REFERENCES categories(name) ON UPDATE CASCADE ON DELETE RESTRICT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_images_category ON images(category);
+  `);
+
+  return dbInstance;
+}
+
+function migrateFromExcelIfNeeded() {
+  const db = getDb();
+  const categoryCount = db.prepare("SELECT COUNT(*) AS count FROM categories").get().count;
+  const imageCount = db.prepare("SELECT COUNT(*) AS count FROM images").get().count;
+
+  if (categoryCount > 0 || imageCount > 0) {
     return;
   }
 
-  ensureWorkbookStructure();
+  if (!fs.existsSync(EXCEL_PATH)) {
+    return;
+  }
+
+  try {
+    const workbook = XLSX.readFile(EXCEL_PATH);
+    const imageRows = readSheetRows(workbook, IMAGES_SHEET);
+    const fallbackImageRows = imageRows.length
+      ? imageRows
+      : readSheetRows(workbook, workbook.SheetNames[0]);
+    const categoryRows = readSheetRows(workbook, CATEGORIES_SHEET);
+
+    const parsedImages = fallbackImageRows
+      .map((row, index) => ({
+        id: String(row.id || `img-${String(index + 1).padStart(3, "0")}`),
+        label: String(row.label || "صورة بدون اسم").trim(),
+        category: normalizeCategory(row.category) || DEFAULT_CATEGORY,
+        url: String(row.url || "").trim(),
+        createdAt: String(row.createdAt || new Date().toISOString())
+      }))
+      .filter((item) => item.label && isValidUrl(item.url));
+
+    const categoryNames = new Set();
+
+    categoryRows.forEach((row) => {
+      const name = normalizeCategory(row.name);
+      if (name) {
+        categoryNames.add(name);
+      }
+    });
+
+    parsedImages.forEach((item) => {
+      if (item.category) {
+        categoryNames.add(item.category);
+      }
+    });
+
+    categoryNames.add(DEFAULT_CATEGORY);
+
+    const parsedCategories = Array.from(categoryNames).map((name, index) => ({
+      id: `cat-${String(index + 1).padStart(3, "0")}`,
+      name,
+      createdAt: new Date().toISOString()
+    }));
+
+    const transaction = db.transaction(() => {
+      const insertCategory = db.prepare(
+        "INSERT OR IGNORE INTO categories (id, name, createdAt) VALUES (?, ?, ?)"
+      );
+      const insertImage = db.prepare(
+        "INSERT OR IGNORE INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)"
+      );
+
+      parsedCategories.forEach((item) => {
+        insertCategory.run(item.id, item.name, item.createdAt);
+      });
+
+      parsedImages.forEach((item) => {
+        insertCategory.run(`cat-${Date.now()}-${item.id}`, item.category, item.createdAt);
+        insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
+      });
+    });
+
+    transaction();
+  } catch {
+  }
+}
+
+function seedDatabaseIfEmpty() {
+  const db = getDb();
+
+  const categoryCount = db.prepare("SELECT COUNT(*) AS count FROM categories").get().count;
+  const imageCount = db.prepare("SELECT COUNT(*) AS count FROM images").get().count;
+
+  if (categoryCount > 0 || imageCount > 0) {
+    return;
+  }
+
+  const categories = seedCategories();
+  const images = seedImages();
+
+  const transaction = db.transaction(() => {
+    const insertCategory = db.prepare(
+      "INSERT OR IGNORE INTO categories (id, name, createdAt) VALUES (?, ?, ?)"
+    );
+    const insertImage = db.prepare(
+      "INSERT OR IGNORE INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)"
+    );
+
+    categories.forEach((item) => {
+      insertCategory.run(item.id, item.name, item.createdAt);
+    });
+
+    images.forEach((item) => {
+      insertCategory.run(`cat-${Date.now()}-${item.id}`, item.category, item.createdAt);
+      insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
+    });
+  });
+
+  transaction();
+}
+
+function ensureExcelFile() {
+  getDb();
+  migrateFromExcelIfNeeded();
+  seedDatabaseIfEmpty();
 }
 
 function readCategories() {
   ensureExcelFile();
 
-  const workbook = readWorkbook();
-  const rows = readSheetRows(workbook, CATEGORIES_SHEET);
-
-  return rows
-    .map((row, index) => ({
-      id: String(row.id || `cat-${String(index + 1).padStart(3, "0")}`),
-      name: normalizeCategory(row.name),
-      createdAt: String(row.createdAt || "")
+  const db = getDb();
+  return db
+    .prepare("SELECT id, name, createdAt FROM categories ORDER BY datetime(createdAt), id")
+    .all()
+    .map((item) => ({
+      id: String(item.id || ""),
+      name: normalizeCategory(item.name),
+      createdAt: String(item.createdAt || "")
     }))
     .filter((item) => item.name);
 }
@@ -155,16 +237,16 @@ function readCategories() {
 function readImages() {
   ensureExcelFile();
 
-  const workbook = readWorkbook();
-  const rows = readSheetRows(workbook, IMAGES_SHEET);
-
-  return rows
-    .map((row, index) => ({
-      id: String(row.id || `img-${String(index + 1).padStart(3, "0")}`),
-      label: String(row.label || "صورة بدون اسم").trim(),
-      category: normalizeCategory(row.category) || DEFAULT_CATEGORY,
-      url: String(row.url || "").trim(),
-      createdAt: String(row.createdAt || "")
+  const db = getDb();
+  return db
+    .prepare("SELECT id, label, category, url, createdAt FROM images ORDER BY datetime(createdAt), id")
+    .all()
+    .map((item) => ({
+      id: String(item.id || ""),
+      label: String(item.label || "صورة بدون اسم").trim(),
+      category: normalizeCategory(item.category) || DEFAULT_CATEGORY,
+      url: String(item.url || "").trim(),
+      createdAt: String(item.createdAt || "")
     }))
     .filter((item) => item.label && isValidUrl(item.url));
 }
@@ -175,10 +257,12 @@ function addCategoryToStore(name) {
     return { ok: false, error: "اسم الفئة مطلوب." };
   }
 
-  const categories = readCategories();
-  const exists = categories.find(
-    (item) => item.name.toLocaleLowerCase() === normalizedName.toLocaleLowerCase()
-  );
+  ensureExcelFile();
+  const db = getDb();
+
+  const exists = db
+    .prepare("SELECT id FROM categories WHERE lower(name) = lower(?) LIMIT 1")
+    .get(normalizedName);
 
   if (exists) {
     return { ok: false, error: "هذه الفئة موجودة بالفعل." };
@@ -190,15 +274,14 @@ function addCategoryToStore(name) {
     createdAt: new Date().toISOString()
   };
 
-  const images = readImages();
-  const updatedCategories = [...categories, next];
+  db.prepare("INSERT INTO categories (id, name, createdAt) VALUES (?, ?, ?)").run(
+    next.id,
+    next.name,
+    next.createdAt
+  );
 
-  writeWorkbook({
-    images,
-    categories: updatedCategories
-  });
-
-  return { ok: true, item: next, count: updatedCategories.length };
+  const count = db.prepare("SELECT COUNT(*) AS count FROM categories").get().count;
+  return { ok: true, item: next, count };
 }
 
 function addImageToStore({ label, url, category }) {
@@ -218,15 +301,20 @@ function addImageToStore({ label, url, category }) {
     return { ok: false, error: "الفئة مطلوبة." };
   }
 
-  const categories = readCategories();
-  const categoryExists = categories.some((item) => item.name === normalizedCategory);
+  ensureExcelFile();
+  const db = getDb();
 
-  if (!categoryExists) {
+  const categoryRow = db
+    .prepare("SELECT name FROM categories WHERE lower(name) = lower(?) LIMIT 1")
+    .get(normalizedCategory);
+
+  if (!categoryRow) {
     return { ok: false, error: "الفئة غير موجودة. أضفها أولاً." };
   }
 
-  const images = readImages();
-  const duplicate = images.find((item) => item.url.toLowerCase() === normalizedUrl.toLowerCase());
+  const duplicate = db
+    .prepare("SELECT id FROM images WHERE lower(url) = lower(?) LIMIT 1")
+    .get(normalizedUrl);
 
   if (duplicate) {
     return { ok: false, error: "رابط الصورة هذا موجود بالفعل." };
@@ -235,24 +323,47 @@ function addImageToStore({ label, url, category }) {
   const next = {
     id: `img-${Date.now()}`,
     label: normalizedLabel,
-    category: normalizedCategory,
+    category: String(categoryRow.name),
     url: normalizedUrl,
     createdAt: new Date().toISOString()
   };
 
-  const updated = [...images, next];
-  writeWorkbook({ images: updated, categories });
+  db.prepare("INSERT INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)")
+    .run(next.id, next.label, next.category, next.url, next.createdAt);
 
-  return { ok: true, item: next, count: updated.length };
+  const count = db.prepare("SELECT COUNT(*) AS count FROM images").get().count;
+  return { ok: true, item: next, count };
 }
 
 function resetExcelData() {
   ensureExcelFile();
+  const db = getDb();
 
   const categories = seedCategories();
   const images = seedImages();
 
-  writeWorkbook({ images, categories });
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM images").run();
+    db.prepare("DELETE FROM categories").run();
+
+    const insertCategory = db.prepare(
+      "INSERT INTO categories (id, name, createdAt) VALUES (?, ?, ?)"
+    );
+    const insertImage = db.prepare(
+      "INSERT INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)"
+    );
+
+    categories.forEach((item) => {
+      insertCategory.run(item.id, item.name, item.createdAt);
+    });
+
+    images.forEach((item) => {
+      insertCategory.run(`cat-${Date.now()}-${item.id}`, item.category, item.createdAt);
+      insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
+    });
+  });
+
+  transaction();
 
   return {
     ok: true,
@@ -263,6 +374,7 @@ function resetExcelData() {
 }
 
 module.exports = {
+  DB_PATH,
   EXCEL_PATH,
   readCategories,
   addCategoryToStore,

@@ -588,7 +588,7 @@ app
         res.status(200).json(result);
       } catch (error) {
         console.error(error);
-        res.status(500).json({ ok: false, error: "تعذّرت إعادة ضبط بيانات Excel." });
+        res.status(500).json({ ok: false, error: "تعذّرت إعادة ضبط بيانات قاعدة البيانات." });
       }
     });
 
