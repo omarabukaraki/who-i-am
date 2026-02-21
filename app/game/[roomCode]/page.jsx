@@ -101,6 +101,7 @@ export default function GamePage() {
       <div className="room-chip">الغرفة {roomCode}</div>
 
       <div className="card game-card">
+        <img className="brand-logo" src="/images/logo.png" alt="شعار خمّن من أنا" />
         <h1>صورة خصمك</h1>
 
         {imageSrc ? (

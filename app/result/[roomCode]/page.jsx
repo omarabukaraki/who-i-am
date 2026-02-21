@@ -25,6 +25,7 @@ export default function ResultPage() {
   return (
     <main className="page shell">
       <div className="card result-card">
+        <img className="brand-logo" src="/images/logo.png" alt="شعار خمّن من أنا" />
         <p className="label">الغرفة {roomCode}</p>
         <h1 className={status === "win" ? "win-text" : "lose-text"}>{heading}</h1>
         <p className="subtle">الإجابة الصحيحة: {answer}</p>
