@@ -20,7 +20,7 @@ export default function HomePage() {
       setLoadingAction("");
 
       if (!response?.ok) {
-        setError(response?.error || "Failed to create room.");
+        setError(response?.error || "تعذّر إنشاء الغرفة.");
         return;
       }
 
@@ -39,7 +39,7 @@ export default function HomePage() {
     setError("");
 
     if (!/^\d{4}$/.test(roomCode)) {
-      setError("Please enter a valid 4-digit room code.");
+      setError("يرجى إدخال رمز غرفة صحيح مكوّن من 4 أرقام.");
       return;
     }
 
@@ -50,7 +50,7 @@ export default function HomePage() {
       setLoadingAction("");
 
       if (!response?.ok) {
-        setError(response?.error || "Failed to join room.");
+        setError(response?.error || "تعذّر الانضمام إلى الغرفة.");
         return;
       }
 
@@ -64,13 +64,14 @@ export default function HomePage() {
         try {
           saveActiveGame({
             roomCode: response.roomCode,
+            category: response.category || null,
             opponentImage: response.opponentImage
           });
 
           router.push(`/game/${response.roomCode}`);
           return;
         } catch (error) {
-          console.error("Error saving active game:", error);
+          console.error("خطأ أثناء حفظ بيانات اللعبة:", error);
         }
       }
 
@@ -81,11 +82,11 @@ export default function HomePage() {
   return (
     <main className="page shell">
       <div className="card hero-card">
-        <div className="pill">2026 EDITION NOW LIVE</div>
-        <h1>Guess What I Am</h1>
+        <div className="pill">نسخة 2026 متاحة الآن</div>
+        <h1>خمّن من أنا</h1>
         <p>
-          A local 2-player guessing showdown. See your opponent&apos;s image and guess your own by
-          asking smart questions.
+          تحدّي تخمين محلي بين لاعبين. شاهد صورة خصمك وحاول معرفة صورتك أنت عبر طرح أسئلة
+          ذكية.
         </p>
 
         <div className="actions-grid">
@@ -94,7 +95,7 @@ export default function HomePage() {
             onClick={handleCreate}
             disabled={loadingAction !== ""}
           >
-            {loadingAction === "create" ? "Creating..." : "Create Game"}
+            {loadingAction === "create" ? "جارٍ الإنشاء..." : "إنشاء لعبة"}
           </button>
 
           <div className="join-group">
@@ -102,7 +103,7 @@ export default function HomePage() {
               className="input"
               value={joinCode}
               onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder="Enter 4-digit room code"
+              placeholder="أدخل رمز غرفة من 4 أرقام"
               inputMode="numeric"
               maxLength={4}
             />
@@ -111,7 +112,7 @@ export default function HomePage() {
               onClick={handleJoin}
               disabled={loadingAction !== ""}
             >
-              {loadingAction === "join" ? "Joining..." : "Join Game"}
+              {loadingAction === "join" ? "جارٍ الانضمام..." : "انضمام للعبة"}
             </button>
           </div>
         </div>

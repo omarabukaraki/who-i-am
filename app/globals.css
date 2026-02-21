@@ -319,6 +319,34 @@ body::before {
   background: linear-gradient(90deg, #6f5fff, #2dd4ff);
 }
 
+.sound-toggle {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1000;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.sound-toggle-playing {
+  animation: sound-pulse 1s ease-in-out infinite;
+}
+
+@keyframes sound-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.4);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 12px rgba(124, 92, 255, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(124, 92, 255, 0);
+  }
+}
+
 .game-shell {
   flex-direction: column;
   gap: 14px;

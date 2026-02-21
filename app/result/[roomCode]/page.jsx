@@ -11,10 +11,10 @@ export default function ResultPage() {
   const roomCode = String(params.roomCode || "");
 
   const status = searchParams.get("status") === "win" ? "win" : "lose";
-  const answer = searchParams.get("answer") || "Unknown";
-  const guess = searchParams.get("guess") || "No guess";
+  const answer = searchParams.get("answer") || "غير معروف";
+  const guess = searchParams.get("guess") || "لا يوجد تخمين";
 
-  const heading = useMemo(() => (status === "win" ? "You Win!" : "You Lose!"), [status]);
+  const heading = useMemo(() => (status === "win" ? "لقد فزت!" : "لقد خسرت!"), [status]);
 
   const handlePlayAgain = () => {
     clearActiveGame();
@@ -25,13 +25,13 @@ export default function ResultPage() {
   return (
     <main className="page shell">
       <div className="card result-card">
-        <p className="label">ROOM {roomCode}</p>
+        <p className="label">الغرفة {roomCode}</p>
         <h1 className={status === "win" ? "win-text" : "lose-text"}>{heading}</h1>
-        <p className="subtle">Correct answer: {answer}</p>
-        <p className="subtle">Your guess: {guess}</p>
+        <p className="subtle">الإجابة الصحيحة: {answer}</p>
+        <p className="subtle">تخمينك: {guess}</p>
 
         <button className="btn btn-primary" onClick={handlePlayAgain}>
-          Play Again
+          العب مرة أخرى
         </button>
       </div>
     </main>

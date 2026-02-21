@@ -19,6 +19,7 @@ export default function GamePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [opponentImage, setOpponentImage] = useState(null);
+  const [challengeCategory, setChallengeCategory] = useState("");
 
   const imageSrc = useMemo(() => {
     if (opponentImage?.url) {
@@ -47,6 +48,7 @@ export default function GamePage() {
     }
 
     setOpponentImage(activeGame.opponentImage);
+  setChallengeCategory(String(activeGame.category || ""));
 
     const socket = getSocket();
 
@@ -60,7 +62,7 @@ export default function GamePage() {
     const handleRoomClosed = (payload) => {
       clearActiveGame();
       clearRoomSession();
-      setError(payload?.message || "Room ended.");
+      setError(payload?.message || "انتهت الغرفة.");
       setTimeout(() => router.replace("/"), 1200);
     };
 
@@ -78,7 +80,7 @@ export default function GamePage() {
     const normalized = guess.trim();
 
     if (!normalized) {
-      setError("Please type your guess before submitting.");
+      setError("يرجى كتابة تخمينك قبل الإرسال.");
       return;
     }
 
@@ -89,22 +91,23 @@ export default function GamePage() {
       setSubmitting(false);
 
       if (!response?.ok) {
-        setError(response?.error || "Failed to submit guess.");
+        setError(response?.error || "تعذّر إرسال التخمين.");
       }
     });
   };
 
   return (
     <main className="page shell game-shell">
-      <div className="room-chip">Room {roomCode}</div>
+      <div className="room-chip">الغرفة {roomCode}</div>
 
       <div className="card game-card">
-        <h1>Your Opponent Image</h1>
+        <h1>صورة خصمك</h1>
+        {challengeCategory ? <p className="subtle">فئة التحدّي: {challengeCategory}</p> : null}
 
         {imageSrc ? (
-          <img className="opponent-image" src={imageSrc} alt="Opponent visual clue" />
+          <img className="opponent-image" src={imageSrc} alt="صورة تلميح الخصم" />
         ) : (
-          <div className="image-placeholder">Loading image...</div>
+          <div className="image-placeholder">جارٍ تحميل الصورة...</div>
         )}
 
         <div className="guess-panel">
@@ -112,11 +115,11 @@ export default function GamePage() {
             className="input"
             value={guess}
             onChange={(event) => setGuess(event.target.value)}
-            placeholder="Type your guess"
+            placeholder="اكتب تخمينك"
             maxLength={80}
           />
           <button className="btn btn-primary" onClick={submitGuess} disabled={submitting}>
-            {submitting ? "Checking..." : "Guess"}
+            {submitting ? "جارٍ التحقق..." : "تخمين"}
           </button>
         </div>
 
