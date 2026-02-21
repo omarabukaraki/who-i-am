@@ -1,14 +1,18 @@
 import "./globals.css";
+import SiteAudio from "./site-audio";
 
 export const metadata = {
-  title: "Guess What I Am",
-  description: "A local 2-player image guessing showdown"
+  title: "خمّن من أنا",
+  description: "لعبة تخمين صور محلية للاعبين"
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
+      <body>
+        <SiteAudio />
+        {children}
+      </body>
     </html>
   );
 }

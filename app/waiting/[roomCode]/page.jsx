@@ -42,6 +42,7 @@ export default function WaitingRoomPage() {
 
       saveActiveGame({
         roomCode,
+        category: payload?.category || null,
         opponentImage: payload.opponentImage
       });
 
@@ -51,7 +52,7 @@ export default function WaitingRoomPage() {
     const handleRoomClosed = (payload) => {
       clearActiveGame();
       clearRoomSession();
-      setError(payload?.message || "Room was closed.");
+      setError(payload?.message || "تم إغلاق الغرفة.");
 
       setTimeout(() => {
         router.replace("/");
@@ -66,7 +67,7 @@ export default function WaitingRoomPage() {
       if (!response?.ok) {
         clearActiveGame();
         clearRoomSession();
-        setError(response?.error || "Unable to sync room state.");
+        setError(response?.error || "تعذّرت مزامنة حالة الغرفة.");
 
         setTimeout(() => {
           router.replace("/");
@@ -79,6 +80,7 @@ export default function WaitingRoomPage() {
       if (response.gameStarted && response.opponentImage) {
         saveActiveGame({
           roomCode,
+          category: response.category || null,
           opponentImage: response.opponentImage
         });
 
@@ -96,18 +98,18 @@ export default function WaitingRoomPage() {
   return (
     <main className="page shell">
       <div className="card waiting-card">
-        <p className="label">GAME ROOM CODE</p>
+        <p className="label">رمز غرفة اللعبة</p>
         <h1 className="room-code">{roomCode}</h1>
 
         <div className="loader-wrap">
           <span className="loader-dot" />
         </div>
 
-        <p className="status-text">Waiting for second player...</p>
-        <p className="subtle">Share this room code with your friend to start the game.</p>
+        <p className="status-text">بانتظار اللاعب الثاني...</p>
+        <p className="subtle">شارك رمز الغرفة مع صديقك لبدء اللعبة.</p>
 
         <div className="progress-row">
-          <span>PLAYERS</span>
+          <span>اللاعبون</span>
           <span>{playerCount}/2</span>
         </div>
         <div className="progress-track">
