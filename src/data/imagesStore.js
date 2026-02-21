@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const XLSX = require("xlsx");
 const Database = require("better-sqlite3");
 const { IMAGES } = require("./images");
 
@@ -11,9 +10,6 @@ const DATA_DIR = process.env.DATA_DIR
 const DB_PATH = process.env.DATA_DB_PATH
   ? path.resolve(process.env.DATA_DB_PATH)
   : path.join(DATA_DIR, "images.sqlite");
-const EXCEL_PATH = path.join(DATA_DIR, "images.xlsx");
-const IMAGES_SHEET = "Images";
-const CATEGORIES_SHEET = "Categories";
 
 let dbInstance = null;
 
@@ -59,15 +55,6 @@ function seedImages() {
   })).filter((item) => item.label && isValidUrl(item.url));
 }
 
-function readSheetRows(workbook, sheetName) {
-  const sheet = workbook.Sheets[sheetName];
-  if (!sheet) {
-    return [];
-  }
-
-  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
-}
-
 function getDb() {
   if (dbInstance) {
     return dbInstance;
@@ -79,6 +66,7 @@ function getDb() {
 
   dbInstance = new Database(DB_PATH);
   dbInstance.pragma("journal_mode = WAL");
+  dbInstance.pragma("foreign_keys = ON");
 
   dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -100,83 +88,6 @@ function getDb() {
   `);
 
   return dbInstance;
-}
-
-function migrateFromExcelIfNeeded() {
-  const db = getDb();
-  const categoryCount = db.prepare("SELECT COUNT(*) AS count FROM categories").get().count;
-  const imageCount = db.prepare("SELECT COUNT(*) AS count FROM images").get().count;
-
-  if (categoryCount > 0 || imageCount > 0) {
-    return;
-  }
-
-  if (!fs.existsSync(EXCEL_PATH)) {
-    return;
-  }
-
-  try {
-    const workbook = XLSX.readFile(EXCEL_PATH);
-    const imageRows = readSheetRows(workbook, IMAGES_SHEET);
-    const fallbackImageRows = imageRows.length
-      ? imageRows
-      : readSheetRows(workbook, workbook.SheetNames[0]);
-    const categoryRows = readSheetRows(workbook, CATEGORIES_SHEET);
-
-    const parsedImages = fallbackImageRows
-      .map((row, index) => ({
-        id: String(row.id || `img-${String(index + 1).padStart(3, "0")}`),
-        label: String(row.label || "صورة بدون اسم").trim(),
-        category: normalizeCategory(row.category) || DEFAULT_CATEGORY,
-        url: String(row.url || "").trim(),
-        createdAt: String(row.createdAt || new Date().toISOString())
-      }))
-      .filter((item) => item.label && isValidUrl(item.url));
-
-    const categoryNames = new Set();
-
-    categoryRows.forEach((row) => {
-      const name = normalizeCategory(row.name);
-      if (name) {
-        categoryNames.add(name);
-      }
-    });
-
-    parsedImages.forEach((item) => {
-      if (item.category) {
-        categoryNames.add(item.category);
-      }
-    });
-
-    categoryNames.add(DEFAULT_CATEGORY);
-
-    const parsedCategories = Array.from(categoryNames).map((name, index) => ({
-      id: `cat-${String(index + 1).padStart(3, "0")}`,
-      name,
-      createdAt: new Date().toISOString()
-    }));
-
-    const transaction = db.transaction(() => {
-      const insertCategory = db.prepare(
-        "INSERT OR IGNORE INTO categories (id, name, createdAt) VALUES (?, ?, ?)"
-      );
-      const insertImage = db.prepare(
-        "INSERT OR IGNORE INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)"
-      );
-
-      parsedCategories.forEach((item) => {
-        insertCategory.run(item.id, item.name, item.createdAt);
-      });
-
-      parsedImages.forEach((item) => {
-        insertCategory.run(`cat-${Date.now()}-${item.id}`, item.category, item.createdAt);
-        insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
-      });
-    });
-
-    transaction();
-  } catch {
-  }
 }
 
 function seedDatabaseIfEmpty() {
@@ -205,7 +116,7 @@ function seedDatabaseIfEmpty() {
     });
 
     images.forEach((item) => {
-      insertCategory.run(`cat-${Date.now()}-${item.id}`, item.category, item.createdAt);
+      insertCategory.run(`cat-seed-${item.id}`, item.category, item.createdAt);
       insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
     });
   });
@@ -213,14 +124,17 @@ function seedDatabaseIfEmpty() {
   transaction();
 }
 
-function ensureExcelFile() {
+function ensureDataStore() {
   getDb();
-  migrateFromExcelIfNeeded();
   seedDatabaseIfEmpty();
 }
 
+function ensureExcelFile() {
+  ensureDataStore();
+}
+
 function readCategories() {
-  ensureExcelFile();
+  ensureDataStore();
 
   const db = getDb();
   return db
@@ -235,7 +149,7 @@ function readCategories() {
 }
 
 function readImages() {
-  ensureExcelFile();
+  ensureDataStore();
 
   const db = getDb();
   return db
@@ -257,7 +171,7 @@ function addCategoryToStore(name) {
     return { ok: false, error: "اسم الفئة مطلوب." };
   }
 
-  ensureExcelFile();
+  ensureDataStore();
   const db = getDb();
 
   const exists = db
@@ -301,7 +215,7 @@ function addImageToStore({ label, url, category }) {
     return { ok: false, error: "الفئة مطلوبة." };
   }
 
-  ensureExcelFile();
+  ensureDataStore();
   const db = getDb();
 
   const categoryRow = db
@@ -328,15 +242,20 @@ function addImageToStore({ label, url, category }) {
     createdAt: new Date().toISOString()
   };
 
-  db.prepare("INSERT INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)")
-    .run(next.id, next.label, next.category, next.url, next.createdAt);
+  db.prepare("INSERT INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)").run(
+    next.id,
+    next.label,
+    next.category,
+    next.url,
+    next.createdAt
+  );
 
   const count = db.prepare("SELECT COUNT(*) AS count FROM images").get().count;
   return { ok: true, item: next, count };
 }
 
 function resetExcelData() {
-  ensureExcelFile();
+  ensureDataStore();
   const db = getDb();
 
   const categories = seedCategories();
@@ -358,7 +277,7 @@ function resetExcelData() {
     });
 
     images.forEach((item) => {
-      insertCategory.run(`cat-${Date.now()}-${item.id}`, item.category, item.createdAt);
+      insertCategory.run(`cat-seed-${item.id}`, item.category, item.createdAt);
       insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
     });
   });
@@ -375,7 +294,6 @@ function resetExcelData() {
 
 module.exports = {
   DB_PATH,
-  EXCEL_PATH,
   readCategories,
   addCategoryToStore,
   readImages,
