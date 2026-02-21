@@ -98,6 +98,7 @@ export default function WaitingRoomPage() {
   return (
     <main className="page shell">
       <div className="card waiting-card">
+        <img className="brand-logo" src="/images/logo.png" alt="شعار خمّن من أنا" />
         <p className="label">رمز غرفة اللعبة</p>
         <h1 className="room-code">{roomCode}</h1>
 
