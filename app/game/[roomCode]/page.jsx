@@ -48,7 +48,7 @@ export default function GamePage() {
     }
 
     setOpponentImage(activeGame.opponentImage);
-  setChallengeCategory(String(activeGame.category || ""));
+    setChallengeCategory(String(activeGame.category || ""));
 
     const socket = getSocket();
 
@@ -102,7 +102,6 @@ export default function GamePage() {
 
       <div className="card game-card">
         <h1>صورة خصمك</h1>
-        {challengeCategory ? <p className="subtle">فئة التحدّي: {challengeCategory}</p> : null}
 
         {imageSrc ? (
           <img className="opponent-image" src={imageSrc} alt="صورة تلميح الخصم" />
