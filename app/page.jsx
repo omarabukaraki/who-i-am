@@ -82,6 +82,7 @@ export default function HomePage() {
   return (
     <main className="page shell">
       <div className="card hero-card">
+        <img className="brand-logo" src="/images/logo.png" alt="شعار خمّن من أنا" />
         <div className="pill">نسخة 2026 متاحة الآن</div>
         <h1>خمّن من أنا</h1>
         <p>
