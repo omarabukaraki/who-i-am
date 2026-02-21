@@ -34,8 +34,8 @@ export default function AdminLoginPage() {
           router.replace("/admin");
           return;
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        console.log(error);
       } finally {
         setChecking(false);
       }
