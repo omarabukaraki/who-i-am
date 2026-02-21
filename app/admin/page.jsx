@@ -202,7 +202,7 @@ export default function AdminPage() {
 
       setLabel("");
       setUrl("");
-      setSuccess("تمت إضافة رابط الصورة إلى ملف Excel بنجاح.");
+      setSuccess("تمت إضافة رابط الصورة إلى قاعدة البيانات بنجاح.");
       await loadAll();
     } catch (requestError) {
       setError(requestError.message || "تعذّر حفظ الصورة.");
@@ -274,7 +274,7 @@ export default function AdminPage() {
       <div className="card admin-card">
         <h1>لوحة الإدارة</h1>
         <p className="subtle">
-          أضف روابط الصور للعبة. يتم حفظ البيانات في ملف Excel داخل data/images.xlsx.
+          أضف روابط الصور للعبة. يتم حفظ البيانات في قاعدة البيانات المحلية.
         </p>
         <button className="btn btn-secondary" onClick={logout} disabled={loggingOut}>
           {loggingOut ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج"}
