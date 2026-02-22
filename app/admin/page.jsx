@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 
 async function parseApiPayload(response) {
   const rawText = await response.text();
@@ -29,9 +30,63 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [savingCategory, setSavingCategory] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [excelFile, setExcelFile] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const normalizeHeader = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
+  const mapExcelRow = (row) => {
+    const mapped = {
+      category: "",
+      label: "",
+      url: ""
+    };
+
+    Object.entries(row || {}).forEach(([key, value]) => {
+      const normalized = normalizeHeader(key);
+
+      if (["category", "cat", "الفئة"].includes(normalized)) {
+        mapped.category = String(value || "").trim();
+      }
+
+      if (["label", "name", "title", "الاسم", "اسمالصورة", "اسم"].includes(normalized)) {
+        mapped.label = String(value || "").trim();
+      }
+
+      if (["url", "imageurl", "link", "الرابط", "رابط"].includes(normalized)) {
+        mapped.url = String(value || "").trim();
+      }
+    });
+
+    return mapped;
+  };
+
+  const parseExcelFile = async (file) => {
+    const fileBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(fileBuffer, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+
+    if (!firstSheetName) {
+      return [];
+    }
+
+    const firstSheet = workbook.Sheets[firstSheetName];
+    const rawRows = XLSX.utils.sheet_to_json(firstSheet, {
+      defval: "",
+      raw: false
+    });
+
+    return rawRows
+      .map((row) => mapExcelRow(row))
+      .filter((row) => row.label || row.url || row.category);
+  };
 
   const handleUnauthorized = (response) => {
     if (response.status === 401) {
@@ -243,6 +298,53 @@ export default function AdminPage() {
     }
   };
 
+  const importExcel = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!excelFile) {
+      setError("اختر ملف إكسل أولاً.");
+      return;
+    }
+
+    setImporting(true);
+
+    try {
+      const rows = await parseExcelFile(excelFile);
+
+      if (!rows.length) {
+        throw new Error("لم يتم العثور على بيانات قابلة للاستيراد داخل ملف الإكسل.");
+      }
+
+      const response = await fetch("/api/admin/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ rows })
+      });
+
+      if (handleUnauthorized(response)) {
+        return;
+      }
+
+      const payload = await parseApiPayload(response);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || "تعذّر استيراد بيانات الإكسل.");
+      }
+
+      setExcelFile(null);
+      setSuccess(payload.message || "تم استيراد البيانات من ملف الإكسل بنجاح.");
+      await loadAll();
+    } catch (requestError) {
+      setError(requestError.message || "تعذّر استيراد بيانات الإكسل.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const logout = async () => {
     setLoggingOut(true);
 
@@ -321,6 +423,18 @@ export default function AdminPage() {
           />
           <button className="btn btn-primary" disabled={saving} type="submit">
             {saving ? "جارٍ الحفظ..." : "إضافة صورة"}
+          </button>
+        </form>
+
+        <form className="admin-form" onSubmit={importExcel}>
+          <input
+            className="input"
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={(event) => setExcelFile(event.target.files?.[0] || null)}
+          />
+          <button className="btn btn-secondary" disabled={importing} type="submit">
+            {importing ? "جارٍ استيراد ملف الإكسل..." : "استيراد من Excel"}
           </button>
         </form>
 

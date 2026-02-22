@@ -7,6 +7,7 @@ const {
   addCategoryToStore,
   addImageToStore,
   ensureExcelFile,
+  importImagesFromExcelRows,
   readCategories,
   readImages,
   resetExcelData
@@ -207,7 +208,7 @@ app
     const expressApp = express();
     const server = http.createServer(expressApp);
 
-    expressApp.use(express.json({ limit: "1mb" }));
+    expressApp.use(express.json({ limit: "5mb" }));
 
     expressApp.use("/admin", (req, res, nextFn) => {
       if (req.path === "/login" || req.path.startsWith("/login/")) {
@@ -542,6 +543,27 @@ app
       } catch (error) {
         console.error(error);
         res.status(500).json({ ok: false, error: "تعذّر حفظ الصورة." });
+      }
+    });
+
+    expressApp.post("/api/admin/import", (req, res) => {
+      try {
+        if (!ensureAdminAuth(req, res)) {
+          return;
+        }
+
+        const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+        const result = importImagesFromExcelRows(rows);
+
+        if (!result.ok) {
+          res.status(400).json({ ok: false, error: result.error });
+          return;
+        }
+
+        res.status(200).json(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ ok: false, error: "تعذّر استيراد ملف الإكسل." });
       }
     });
 

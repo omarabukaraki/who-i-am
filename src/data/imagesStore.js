@@ -254,6 +254,84 @@ function addImageToStore({ label, url, category }) {
   return { ok: true, item: next, count };
 }
 
+function importImagesFromExcelRows(rows) {
+  if (!Array.isArray(rows) || !rows.length) {
+    return { ok: false, error: "ملف الإكسل فارغ أو غير صالح." };
+  }
+
+  const now = new Date().toISOString();
+  const normalizedRows = [];
+  const categoriesByLowerName = new Map();
+  const urlsByLowerValue = new Set();
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index] || {};
+    const label = String(row.label || "").trim();
+    const category = normalizeCategory(row.category) || DEFAULT_CATEGORY;
+    const url = String(row.url || "").trim();
+
+    if (!label) {
+      return { ok: false, error: `الصف ${index + 2}: اسم الصورة مطلوب.` };
+    }
+
+    if (!isValidUrl(url)) {
+      return { ok: false, error: `الصف ${index + 2}: رابط الصورة غير صالح.` };
+    }
+
+    const lowerCategory = category.toLowerCase();
+    if (!categoriesByLowerName.has(lowerCategory)) {
+      categoriesByLowerName.set(lowerCategory, category);
+    }
+
+    const lowerUrl = url.toLowerCase();
+    if (urlsByLowerValue.has(lowerUrl)) {
+      return { ok: false, error: `الصف ${index + 2}: رابط الصورة مكرر داخل ملف الإكسل.` };
+    }
+
+    urlsByLowerValue.add(lowerUrl);
+    normalizedRows.push({
+      id: `img-import-${Date.now()}-${index + 1}`,
+      label,
+      category: categoriesByLowerName.get(lowerCategory),
+      url,
+      createdAt: now
+    });
+  }
+
+  ensureDataStore();
+  const db = getDb();
+  const categories = Array.from(categoriesByLowerName.values());
+
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM images").run();
+    db.prepare("DELETE FROM categories").run();
+
+    const insertCategory = db.prepare(
+      "INSERT INTO categories (id, name, createdAt) VALUES (?, ?, ?)"
+    );
+    const insertImage = db.prepare(
+      "INSERT INTO images (id, label, category, url, createdAt) VALUES (?, ?, ?, ?, ?)"
+    );
+
+    categories.forEach((name, index) => {
+      insertCategory.run(`cat-import-${index + 1}`, name, now);
+    });
+
+    normalizedRows.forEach((item) => {
+      insertImage.run(item.id, item.label, item.category, item.url, item.createdAt);
+    });
+  });
+
+  transaction();
+
+  return {
+    ok: true,
+    message: "تم استيراد البيانات من ملف الإكسل بنجاح.",
+    categoriesCount: categories.length,
+    imagesCount: normalizedRows.length
+  };
+}
+
 function resetExcelData() {
   ensureDataStore();
   const db = getDb();
@@ -298,6 +376,7 @@ module.exports = {
   addCategoryToStore,
   readImages,
   addImageToStore,
+  importImagesFromExcelRows,
   resetExcelData,
   ensureExcelFile
 };
