@@ -6,7 +6,7 @@ export default function SiteAudio() {
   const audioRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-
+  //
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -28,8 +28,7 @@ export default function SiteAudio() {
         const resumeOnFirstInteraction = async () => {
           try {
             await audio.play();
-          } catch {
-          }
+          } catch {}
 
           window.removeEventListener("pointerdown", resumeOnFirstInteraction);
           window.removeEventListener("keydown", resumeOnFirstInteraction);
@@ -63,8 +62,7 @@ export default function SiteAudio() {
     audio.muted = nextMuted;
 
     if (!nextMuted && audio.paused) {
-      audio.play().catch(() => {
-      });
+      audio.play().catch(() => {});
     }
   };
 
