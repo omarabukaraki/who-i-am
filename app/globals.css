@@ -149,6 +149,32 @@ body::after {
   gap: 12px;
 }
 
+.category-selector {
+  margin-top: 16px;
+}
+
+.category-options {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.category-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(8, 13, 31, 0.45);
+  color: var(--text);
+}
+
+.category-option input {
+  accent-color: var(--primary);
+}
+
 .join-group {
   display: grid;
   gap: 10px;

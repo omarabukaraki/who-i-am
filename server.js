@@ -89,8 +89,26 @@ function generateRoomCode() {
   return code;
 }
 
-function pickTwoDistinctImagesByCategory() {
+function normalizeCategoryList(categories) {
+  if (!Array.isArray(categories)) {
+    return [];
+  }
+
+  const unique = new Set();
+
+  categories.forEach((value) => {
+    const normalized = String(value || "").trim();
+    if (normalized) {
+      unique.add(normalized);
+    }
+  });
+
+  return Array.from(unique);
+}
+
+function pickTwoDistinctImagesByCategory(selectedCategories = []) {
   const images = readImages();
+  const selectedSet = new Set(normalizeCategoryList(selectedCategories));
 
   const imagesByCategory = images.reduce((accumulator, image) => {
     const category = String(image.category || "").trim();
@@ -107,10 +125,24 @@ function pickTwoDistinctImagesByCategory() {
   }, new Map());
 
   const validCategories = Array.from(imagesByCategory.entries()).filter(
-    ([, categoryImages]) => categoryImages.length >= 2
+    ([category, categoryImages]) => {
+      if (categoryImages.length < 2) {
+        return false;
+      }
+
+      if (!selectedSet.size) {
+        return true;
+      }
+
+      return selectedSet.has(category);
+    }
   );
 
   if (!validCategories.length) {
+    if (selectedSet.size) {
+      throw new Error("الفئات المختارة لا تحتوي على صورتين على الأقل داخل نفس الفئة.");
+    }
+
     throw new Error("يلزم وجود صورتين على الأقل داخل نفس الفئة لبدء اللعبة.");
   }
 
@@ -159,7 +191,7 @@ function startGame(io, roomCode) {
     category,
     firstImage: imageOne,
     secondImage: imageTwo
-  } = pickTwoDistinctImagesByCategory();
+  } = pickTwoDistinctImagesByCategory(room.selectedCategories || []);
 
   room.game = {
     startedAt: Date.now(),
@@ -232,13 +264,15 @@ app
     });
 
     io.on("connection", (socket) => {
-      socket.on("create-room", (_, callback) => {
+      socket.on("create-room", ({ categories } = {}, callback) => {
         try {
           const roomCode = generateRoomCode();
+          const selectedCategories = normalizeCategoryList(categories);
 
           rooms.set(roomCode, {
             code: roomCode,
             players: [socket.id],
+            selectedCategories,
             game: null,
             createdAt: Date.now()
           });
@@ -248,7 +282,8 @@ app
           callback?.({
             ok: true,
             roomCode,
-            playerId: socket.id
+            playerId: socket.id,
+            selectedCategories
           });
 
           io.to(roomCode).emit("room-state", {
@@ -506,6 +541,16 @@ app
 
       const authenticated = isAdminAuthenticated(req);
       res.json({ ok: true, authenticated, username: authenticated ? ADMIN_USERNAME : null });
+    });
+
+    expressApp.get("/api/categories", (_req, res) => {
+      try {
+        const categories = readCategories();
+        res.json({ ok: true, count: categories.length, items: categories });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ ok: false, error: "تعذّر تحميل الفئات." });
+      }
     });
 
     expressApp.get("/api/admin/images", (req, res) => {
