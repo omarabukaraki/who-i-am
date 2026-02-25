@@ -10,7 +10,7 @@ export default function HomePage() {
   const [joinCode, setJoinCode] = useState("");
   const [loadingAction, setLoadingAction] = useState("");
   const [error, setError] = useState("");
-
+  //
   const handleCreate = () => {
     setError("");
     setLoadingAction("create");
@@ -85,10 +85,7 @@ export default function HomePage() {
         <img className="brand-logo" src="/images/logo.png" alt="شعار خمّن من أنا" />
         <div className="pill">نسخة 2026 متاحة الآن</div>
         <h1>خمّن من أنا</h1>
-        <p>
-          تحدّي تخمين محلي بين لاعبين. شاهد صورة خصمك وحاول معرفة صورتك أنت عبر طرح أسئلة
-          ذكية.
-        </p>
+        <p>تحدّي تخمين محلي بين لاعبين. شاهد صورة خصمك وحاول معرفة صورتك أنت عبر طرح أسئلة ذكية.</p>
 
         <div className="actions-grid">
           <button
