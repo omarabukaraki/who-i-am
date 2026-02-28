@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_ENV=development node server.js",
-    "build": "next build && next export",
+    "build": "next build",
     "start": "cross-env NODE_ENV=production node server.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
