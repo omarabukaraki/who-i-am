@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_ENV=development node server.js",
-    "build": "next build",
+    "build": "next build && next export",
     "start": "cross-env NODE_ENV=production node server.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@netlify/plugin-nextjs": "^5.15.8",
     "better-sqlite3": "^12.4.1",
     "cross-env": "^7.0.3",
     "express": "^4.21.2",
