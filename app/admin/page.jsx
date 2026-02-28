@@ -33,6 +33,7 @@ export default function AdminPage() {
   const [importing, setImporting] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [excelFile, setExcelFile] = useState(null);
+  const [sidebarCategory, setSidebarCategory] = useState("ALL");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -361,9 +362,27 @@ export default function AdminPage() {
     }
   };
 
+  const visibleItems =
+    sidebarCategory === "ALL"
+      ? items
+      : items.filter((item) => (item.category?.trim() || "عام") === sidebarCategory);
+
+  const sidebarItems = [
+    {
+      id: "ALL",
+      label: "كل الصور",
+      count: items.length
+    },
+    ...categories.map((item) => ({
+      id: item.name,
+      label: item.name,
+      count: items.filter((image) => (image.category?.trim() || "عام") === item.name).length
+    }))
+  ];
+
   if (authChecking) {
     return (
-      <main className="page shell admin-shell">
+      <main className="page admin-layout-loading">
         <div className="card admin-card">
           <p className="subtle">جارٍ التحقق من جلسة الإدارة...</p>
         </div>
@@ -372,110 +391,176 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="page shell admin-shell">
-      <div className="card admin-card">
-        <h1>لوحة الإدارة</h1>
-        <p className="subtle">
-          أضف روابط الصور للعبة. يتم حفظ البيانات في قاعدة البيانات المحلية.
-        </p>
-        <button className="btn btn-secondary" onClick={logout} disabled={loggingOut}>
-          {loggingOut ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج"}
-        </button>
+    <main className="page admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-brand">
+          <p className="admin-brand-title">Admin Panel</p>
+          <p className="admin-brand-subtitle">Images Dashboard</p>
+        </div>
 
-        <form className="admin-form" onSubmit={addCategory}>
-          <input
-            className="input"
-            value={categoryName}
-            onChange={(event) => setCategoryName(event.target.value)}
-            placeholder="اسم الفئة الجديدة"
-            maxLength={60}
-          />
-          <button className="btn btn-secondary" disabled={savingCategory} type="submit">
-            {savingCategory ? "جارٍ الحفظ..." : "إضافة فئة"}
-          </button>
-        </form>
+        <p className="admin-sidebar-label">الفئات</p>
+        <nav className="admin-sidebar-nav">
+          {sidebarItems.map((item) => (
+            <button
+              key={item.id}
+              className={`admin-nav-item ${sidebarCategory === item.id ? "active" : ""}`}
+              onClick={() => setSidebarCategory(item.id)}
+            >
+              <span>{item.label}</span>
+              <span className="admin-nav-count">{item.count}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
 
-        <form className="admin-form" onSubmit={addImage}>
-          <select
-            className="input"
-            value={selectedCategory}
-            onChange={(event) => setSelectedCategory(event.target.value)}
-          >
-            {categories.map((item) => (
-              <option key={item.id} value={item.name}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <input
-            className="input"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="اسم الصورة (نص الإجابة)"
-            maxLength={80}
-          />
-          <input
-            className="input"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="رابط الصورة (https://...)"
-            type="url"
-          />
-          <button className="btn btn-primary" disabled={saving} type="submit">
-            {saving ? "جارٍ الحفظ..." : "إضافة صورة"}
+      <section className="admin-main">
+        <header className="admin-header">
+          <div>
+            <h1>لوحة الإدارة</h1>
+            <p className="subtle">Dashboard لإدارة الفئات والصور بنفس نمط اللوحات الاحترافية.</p>
+          </div>
+          <button className="btn btn-secondary" onClick={logout} disabled={loggingOut}>
+            {loggingOut ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج"}
           </button>
-        </form>
+        </header>
 
-        <form className="admin-form" onSubmit={importExcel}>
-          <input
-            className="input"
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(event) => setExcelFile(event.target.files?.[0] || null)}
-          />
-          <button className="btn btn-secondary" disabled={importing} type="submit">
-            {importing ? "جارٍ استيراد ملف الإكسل..." : "استيراد من Excel"}
-          </button>
-        </form>
+        <section className="admin-control-panel">
+          <div className="admin-action-row">
+            <form className="admin-inline-form" onSubmit={addCategory}>
+              <input
+                className="input"
+                value={categoryName}
+                onChange={(event) => setCategoryName(event.target.value)}
+                placeholder="اسم الفئة الجديدة"
+                maxLength={60}
+              />
+              <button
+                className="btn btn-secondary"
+                style={{
+                  width: "120px"
+                }}
+                disabled={savingCategory}
+                type="submit"
+              >
+                {savingCategory ? "جارٍ الحفظ..." : "إضافة فئة"}
+              </button>
+            </form>
+
+            <form className="admin-inline-form" onSubmit={importExcel}>
+              <input
+                className="input"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(event) => setExcelFile(event.target.files?.[0] || null)}
+              />
+              <button
+                className="btn btn-secondary"
+                style={{
+                  width: "160px"
+                }}
+                disabled={importing}
+                type="submit"
+              >
+                {importing ? "جارٍ الاستيراد..." : "استيراد Excel"}
+              </button>
+            </form>
+
+            <button className="btn btn-secondary" onClick={resetExcel} disabled={resetting}>
+              {resetting ? "جارٍ إعادة الضبط..." : "إعادة ضبط"}
+            </button>
+          </div>
+
+          <form className="admin-add-image-form" onSubmit={addImage}>
+            <select
+              className="input"
+              value={selectedCategory}
+              onChange={(event) => setSelectedCategory(event.target.value)}
+            >
+              {categories.map((item) => (
+                <option key={item.id} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="اسم الصورة"
+              maxLength={80}
+            />
+            <input
+              className="input"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="رابط الصورة (https://...)"
+              type="url"
+            />
+            <button className="btn btn-primary" disabled={saving} type="submit">
+              {saving ? "جارٍ الحفظ..." : "إضافة صورة"}
+            </button>
+          </form>
+        </section>
 
         {error ? <p className="error-banner">{error}</p> : null}
         {success ? <p className="success-banner">{success}</p> : null}
 
-        <button className="btn btn-secondary" onClick={resetExcel} disabled={resetting}>
-          {resetting ? "جارٍ إعادة الضبط..." : "إعادة ضبط البيانات"}
-        </button>
-
-        <div className="admin-list-wrap">
-          <div className="admin-list-head">
-            <span className="label">روابط الصور المحفوظة</span>
-            <button
-              className="btn btn-secondary refresh-btn"
-              onClick={loadAll}
-              disabled={loading}
-            >
-              تحديث
-            </button>
+        <section className="admin-table-panel">
+          <div className="admin-table-head">
+            <p className="label">قائمة الصور</p>
+            <div className="admin-table-meta">
+              <span>النتائج: {visibleItems.length}</span>
+              <button
+                className="btn btn-secondary refresh-btn"
+                onClick={loadAll}
+                disabled={loading}
+              >
+                تحديث
+              </button>
+            </div>
           </div>
 
           {loading ? (
             <p className="subtle">جارٍ التحميل...</p>
+          ) : visibleItems.length ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>الصورة</th>
+                    <th>الاسم</th>
+                    <th>الفئة</th>
+                    <th>الرابط</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <img src={item.url} alt={item.label} className="admin-table-image" />
+                      </td>
+                      <td>{item.label}</td>
+                      <td>{item.category || "عام"}</td>
+                      <td>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="admin-item-url"
+                        >
+                          عرض
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <ul className="admin-list">
-              {items.map((item) => (
-                <li key={item.id} className="admin-item">
-                  <div>
-                    <p className="admin-item-label">{item.label}</p>
-                    <p className="subtle">الفئة: {item.category || "عام"}</p>
-                    <a href={item.url} target="_blank" rel="noreferrer" className="admin-item-url">
-                      {item.url}
-                    </a>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <p className="subtle">لا توجد صور ضمن هذه الفئة.</p>
           )}
-        </div>
-      </div>
+        </section>
+      </section>
     </main>
   );
 }

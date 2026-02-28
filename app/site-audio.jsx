@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export default function SiteAudio() {
+  const pathname = usePathname();
+  const isAdminRoute = pathname?.startsWith("/admin");
   const audioRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   //
   useEffect(() => {
+    if (isAdminRoute) {
+      setIsPlaying(false);
+      return;
+    }
+
     const audio = audioRef.current;
     if (!audio) {
       return;
@@ -48,7 +56,11 @@ export default function SiteAudio() {
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, []);
+  }, [isAdminRoute]);
+
+  if (isAdminRoute) {
+    return null;
+  }
 
   const handleToggleMute = () => {
     const nextMuted = !isMuted;
